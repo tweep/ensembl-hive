@@ -45,12 +45,11 @@ sub Bio::EnsEMBL::Hive::AnalysisJob::semaphore_count {
     return $semaphore ? ( $semaphore->local_jobs_counter + $semaphore->remote_jobs_counter ) : 0;
 }
 
-
 sub assert_jobs {
     my ($job_adaptor, $job_expected_data) = @_;
     my $all_jobs = $job_adaptor->fetch_all();
 
-    my @job_data = map { [$_->status, $_->retry_count, $_->semaphore_count ] } sort {$a->dbID<=> $b->dbID} @$all_jobs;
+    my @job_data = map { [$_->status,  $_->semaphore_count ] } sort {$a->dbID<=> $b->dbID} @$all_jobs;
 
     is_deeply(\@job_data, $job_expected_data, 'Job counts and statuses are correct');
 }
@@ -68,48 +67,52 @@ foreach my $pipeline_url (@$ehive_test_pipeline_urls) {
     my $hive_url    = $hive_dba->dbc->url;
     my $job_adaptor = $hive_dba->get_AnalysisJobAdaptor;
 
-    # First run a single worker in this process. It will run the factory and some FailureTest jobs.
-    runWorker($pipeline_url, [ '-can_respecialize' ]);
+    # First run some jobs
+    foreach my $job_id (1,3,4,5,6,7,3) {
+        runWorker($pipeline_url, [ '-job_id' => $job_id ]);
+    }
+
     # We're now in a state with a selection of DONE, READY, FAILED and SEMAPHORED jobs
 
-    # Tip: SELECT CONCAT('[', GROUP_CONCAT( CONCAT('["',status,'",', retry_count, ',',COALESCE(local_jobs_counter+remote_jobs_counter,0),']') ), ']') FROM job j LEFT JOIN semaphore s ON (j.job_id=s.dependent_job_id) ORDER BY job_id;
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,3],["FAILED",2,0],["DONE",0,0],["READY",1,0],["DONE",0,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",3],["FAILED",0],["DONE",0],["READY",0],["DONE",0],["READY",0]] );
 
     # Reset DONE jobs on the fan
     beekeeper($hive_url, ['-reset_done_jobs', '-analyses_pattern', 'failure_test'], 'beekeeper.pl -reset_done_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,5],["FAILED",2,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",5],["FAILED",0],["READY",0],["READY",0],["READY",0],["READY",0]] );
 
     # Forgive FAILED jobs
     beekeeper($hive_url, ['-forgive_failed_jobs'], 'beekeeper.pl -forgive_failed_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,4],["DONE",2,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",4],["DONE",0],["READY",0],["READY",0],["READY",0],["READY",0]] );
 
     # Run another worker to get more failures
-    runWorker($pipeline_url);
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,2],["DONE",2,0],["DONE",1,0],["FAILED",2,0],["DONE",1,0],["FAILED",2,0]] );
+    foreach my $job_id (4,5,6,7) {
+        runWorker($pipeline_url, [ '-job_id' => $job_id ]);
+    }
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",2],["DONE",0],["DONE",0],["FAILED",0],["DONE",0],["FAILED",0]] );
 
     # Reset FAILED jobs
     beekeeper($hive_url, ['-reset_failed_jobs'], 'beekeeper.pl -reset_failed_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,2],["DONE",2,0],["DONE",1,0],["READY",1,0],["DONE",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",2],["DONE",0],["DONE",0],["READY",0],["DONE",0],["READY",0]] );
 
     # Discard READY jobs
     beekeeper($hive_url, ['-discard_ready_jobs'], 'beekeeper.pl -discard_ready_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["READY",0,0],["DONE",2,0],["DONE",1,0],["DONE",1,0],["DONE",1,0],["DONE",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["READY",0],["DONE",0],["DONE",0],["DONE",0],["DONE",0],["DONE",0]] );
 
     # Reset all fan jobs to READY
     beekeeper($hive_url, ['-reset_all_jobs', '-analyses_pattern', 'failure_test'], 'beekeeper.pl -reset_all_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,5],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["SEMAPHORED",5],["READY",0],["READY",0],["READY",0],["READY",0],["READY",0]] );
 
     # Unblock SEMAPHORED jobs
     beekeeper($hive_url, ['-unblock_semaphored_jobs'], 'beekeeper.pl -unblock_semaphored_jobs');
-    assert_jobs($job_adaptor, [["DONE",0,0],["READY",0,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["DONE",0],["READY",0],["READY",0],["READY",0],["READY",0],["READY",0],["READY",0]] );
 
     # Reset a specific job_id
     beekeeper($hive_url, ['-reset_job_id', 1], 'beekeeper.pl -reset_job_id');
-    assert_jobs($job_adaptor, [["READY",1,0],["READY",0,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0]] );
+    assert_jobs($job_adaptor, [["READY",0],["READY",0],["READY",0],["READY",0],["READY",0],["READY",0],["READY",0]] );
 
     # Discard all jobs, but this time some non-fan jobs as well
     beekeeper($hive_url, ['-discard_ready_jobs'], 'beekeeper.pl -discard_ready_jobs');
-    assert_jobs($job_adaptor, [['DONE',1,0],['READY',0,0],['DONE',1,0],['DONE',1,0],['DONE',1,0],['DONE',1,0],['DONE',1,0]] );
+    assert_jobs($job_adaptor, [['DONE',0],['READY',0],['DONE',0],['DONE',0],['DONE',0],['DONE',0],['DONE',0]] );
 
    $hive_dba->dbc->disconnect_if_idle();
    run_sql_on_db($pipeline_url, 'DROP DATABASE');

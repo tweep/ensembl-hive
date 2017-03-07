@@ -569,7 +569,7 @@ sub check_for_dead_workers {    # scans the whole Valley for lost Workers (but i
         if(my $sj_number = scalar @$orphan_jobs) {
             print "GarbageCollector:\tfound $sj_number unfinished jobs with no roles, reclaiming.\n\n";
             foreach my $job (@$orphan_jobs) {
-                $job_adaptor->release_and_age_job($job->dbID, $job->analysis->max_retry_count, 1);
+                $job_adaptor->release_and_age_job($job->dbID, $job->analysis, 1);
             }
         } else {
             print "GarbageCollector:\tfound none\n";

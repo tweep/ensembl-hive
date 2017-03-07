@@ -62,11 +62,12 @@ sub store_job_message {
 
             # Note: the timestamp 'when_logged' column will be set automatically
         my $sql = qq{
-            INSERT INTO $table_name (job_id, role_id, worker_id, retry, status, msg, message_class)
-                               SELECT job_id, role_id, worker_id, retry_count, status, ?, ?
+            INSERT INTO $table_name (job_id, attempt_id, role_id, worker_id, status, msg, message_class)
+                               SELECT job.job_id, last_attempt_id, job.role_id, worker_id, attempt.status, ?, ?
                                  FROM job
                                  JOIN role USING(role_id)
-                                WHERE job_id=?
+                                 JOIN attempt ON last_attempt_id=attempt_id
+                                WHERE job.job_id=?
         };
 
         my $sth = $self->prepare( $sql );
