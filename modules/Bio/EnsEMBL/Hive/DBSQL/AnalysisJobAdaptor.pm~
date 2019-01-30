@@ -619,8 +619,7 @@ sub reset_or_grab_job_by_inputID {
     my $return_code = $sth->execute( @values )
         or die "Could not run\n\t$sql\nwith data:\n\t(".join(',', @values).')';
     $sth->finish;
-
-
+    
     # Get list of input_id for given wildcard argument
     my $sql_get_input_id = qq{
         SELECT input_id FROM job
