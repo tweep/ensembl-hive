@@ -117,7 +117,8 @@ sub bury_other_beekeepers {
 sub reload_beekeeper_is_blocked {
     my ($self, $beekeeper) = @_;
 
-    my $query = 'SELECT is_blocked FROM beekeeper WHERE beekeeper_id = ?';
+    my $table_name = $self->table_name();
+    my $query = "SELECT is_blocked FROM $table_name WHERE beekeeper_id = ?";
 
     my $sth = $self->dbc->prepare($query);
     $sth->execute($beekeeper->dbID);

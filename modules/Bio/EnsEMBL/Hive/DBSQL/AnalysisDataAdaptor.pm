@@ -81,7 +81,8 @@ sub store_if_needed {
     # UNIQUE KEY in the table definition.
     # This is very similar to check_object_present_in_db_by_content()
     # but it returns the *first* analysis_data_id that's been stored
-    my $sql = 'SELECT MIN(analysis_data_id) FROM analysis_data WHERE md5sum = ? AND data = ?';
+    my $table_name = $self->table_name();
+    my $sql = "SELECT MIN(analysis_data_id) FROM $table_name WHERE md5sum = ? AND data = ?";
     my $sth = $self->prepare( $sql );
     $sth->execute( $storable_hash->{md5sum}, $data );
     my ($first_dbID) = $sth->fetchrow_array();
