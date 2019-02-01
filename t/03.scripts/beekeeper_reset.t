@@ -27,7 +27,7 @@ use Bio::EnsEMBL::Hive::AnalysisJob;
 use Bio::EnsEMBL::Hive::DBSQL::DBAdaptor;
 
 use Bio::EnsEMBL::Hive::Utils::Test qw(init_pipeline runWorker beekeeper run_sql_on_db get_test_urls);
-
+use Smart::Comments;
 # eHive needs this to initialize the pipeline (and run db_cmd.pl)
 use Cwd            ();
 use File::Basename ();
@@ -57,7 +57,7 @@ sub assert_jobs {
 
 
 foreach my $pipeline_url (@$ehive_test_pipeline_urls) {
-
+### $pipeline_url
   subtest 'Test on '.$pipeline_url, sub {
 
     init_pipeline('Bio::EnsEMBL::Hive::Examples::FailureTest::PipeConfig::FailureTest_conf', $pipeline_url,
@@ -74,10 +74,6 @@ foreach my $pipeline_url (@$ehive_test_pipeline_urls) {
 
     # Tip: SELECT CONCAT('[', GROUP_CONCAT( CONCAT('["',status,'",', retry_count, ',',COALESCE(local_jobs_counter+remote_jobs_counter,0),']') ), ']') FROM job j LEFT JOIN semaphore s ON (j.job_id=s.dependent_job_id) ORDER BY job_id;
     assert_jobs($job_adaptor, [["DONE",0,0],["SEMAPHORED",0,3],["FAILED",2,0],["DONE",0,0],["READY",1,0],["DONE",0,0],["READY",1,0]] );
-
-    # Reset a job with specific input_id and analysis_pattern
-    beekeeper($hive_url, ['-reset_job_for_input_id', '{%', '-analyses_pattern', 2], 'beekeeper.pl -reset_job_for_input_id -analyses_pattern');
-    assert_jobs($job_adaptor, [["SEMAPHORED",0,3],["DONE",0,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",1,0],["READY",2,0]] );
 
     # Reset DONE jobs on the fan
     beekeeper($hive_url, ['-reset_done_jobs', '-analyses_pattern', 'failure_test'], 'beekeeper.pl -reset_done_jobs');
@@ -114,6 +110,10 @@ foreach my $pipeline_url (@$ehive_test_pipeline_urls) {
     # Discard all jobs, but this time some non-fan jobs as well
     beekeeper($hive_url, ['-discard_ready_jobs'], 'beekeeper.pl -discard_ready_jobs');
     assert_jobs($job_adaptor, [['DONE',1,0],['READY',0,0],['DONE',1,0],['DONE',1,0],['DONE',1,0],['DONE',1,0],['DONE',1,0]] );
+
+    # Reset a job with specific input_id and analysis_pattern
+    beekeeper($hive_url, ['-reset_job_for_input_id', '{%', '-analyses_pattern', '2'], 'beekeeper.pl -reset_job_for_input_id -analyses_pattern');
+    assert_jobs($job_adaptor, [['DONE',1,0],['READY',0,0],['READY',1,0],['READY',1,0],['READY',1,0],['READY',1,0],['READY',1,0]] );
 
    $hive_dba->dbc->disconnect_if_idle();
    run_sql_on_db($pipeline_url, 'DROP DATABASE');
